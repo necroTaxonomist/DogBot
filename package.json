@@ -1,0 +1,11 @@
+{
+    "name": "DogBot",
+    "version": "0.0.1",
+    "description": "Bot for Protect That Smile",
+    "main": "bot.js",
+    "author": "Trade Mark",
+    "dependencies": {
+        "discord.io": "https://github.com/woor/discord.io/tarball/gateway_v6",
+        "winston": "^3.5.1"
+    }
+}
