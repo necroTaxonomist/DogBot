@@ -1,3 +1,3 @@
 #!/bin/bash
 
-node bot.js
+node .

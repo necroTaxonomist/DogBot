@@ -76,4 +76,4 @@ typings/
 .fusebox/
 
 # Other files
-auth.json
+config.json
