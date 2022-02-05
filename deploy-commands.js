@@ -14,6 +14,23 @@ const topCommand = new SlashCommandBuilder()
         .setName( 'champ' )
         .setDescription( 'Displays the current champion' )
     )
+    .addSubcommand( subcommand => subcommand
+        .setName( 'newchamp' )
+        .setDescription( 'Sets the new champion' )
+        .addUserOption( option => option
+            .setName( 'user' )
+            .setDescription('The user to make the new chamption')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand( subcommand => subcommand
+        .setName( 'raffle' )
+        .setDescription( 'Starts a raffle, or checks the status of the ongoing raffle' )
+        .addIntegerOption( option => option
+            .setName( 'duration' )
+            .setDescription('Duration of the raffle in minutes')
+        )
+    )
     ;
 
 const commands = [ topCommand ].map( command => command.toJSON() );
