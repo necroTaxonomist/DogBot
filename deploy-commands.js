@@ -31,6 +31,10 @@ const topCommand = new SlashCommandBuilder()
             .setDescription('Duration of the raffle in minutes')
         )
     )
+    .addSubcommand( subcommand => subcommand
+        .setName( 'stopraffle' )
+        .setDescription( 'Finishes the ongoing raffle' )
+    )
     ;
 
 const commands = [ topCommand ].map( command => command.toJSON() );

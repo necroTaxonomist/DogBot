@@ -152,12 +152,12 @@ class Raffle
         // Announce the raffle
         let memberNames = this.members.map( m => getName( m ) );
         let resp = randomDogNoise() + ' Running a raffle with ' + oxfordComma( memberNames ) + '!';
-        this.message.reply( resp );
+        await this.message.reply( resp );
 
         // Announce the winner
         let winnerName = getName( winner );
         resp = winnerName + ' wins! ' + randomDogNoise() + ' ' + randomDogNoise();
-        this.message.reply( resp );
+        await this.message.reply( resp );
 
         // No longer active
         this.active = false;
@@ -273,9 +273,9 @@ async function raffleCb( interaction, options )
     // Get the duration of the raffle in minutes
     let duration = options.getInteger( 'duration' );
 
-    if ( duration === null || ongoingRaffle )
+    if ( duration === null || (ongoingRaffle && ongoingRaffle.active) )
     {
-        if ( ongoingRaffle )
+        if ( ongoingRaffle && ongoingRaffle.active )
         {
             let str = '';
             str += "There's a raffle happening! " + randomDogNoise();
@@ -370,13 +370,13 @@ async function raffleCb( interaction, options )
     // Set the timeout to run the raffle
     let timeoutTime = endTime.getTime() - now.getTime();
     setTimeout(
-        () =>
+        async () =>
         {
             if ( ongoingRaffle === null || !ongoingRaffle.active )
                 return;  // Already ran
 
             // Run the raffle
-            ongoingRaffle.runRaffle();
+            await ongoingRaffle.runRaffle();
 
             // Clear the raffle pointer
             ongoingRaffle = null;
@@ -389,6 +389,33 @@ async function raffleCb( interaction, options )
     //ongoingRaffle = null;
 }
 commandCallbacks['raffle'] = raffleCb;
+
+/**
+ * 
+ */
+async function stopRaffleCb( interaction, options )
+{
+    if ( ongoingRaffle && ongoingRaffle.active )
+    {
+        let str = '';
+        str += "Ending the raffle early! " + randomDogNoise();
+        await interaction.reply( str );
+
+        // Run the raffle
+        await ongoingRaffle.runRaffle();
+
+        // Clear the raffle pointer
+        ongoingRaffle = null;
+    }
+    else
+    {
+        let str = '';
+        str += "There's no raffle happening right now! " + randomDogNoise();
+        str += "\nStart one with /dog raffle <duration>!";
+        await interaction.reply( str );
+    }
+}
+commandCallbacks['stopraffle'] = stopRaffleCb;
 
 //------------------
 // Helper Functions
