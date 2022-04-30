@@ -35,6 +35,59 @@ const topCommand = new SlashCommandBuilder()
         .setName( 'stopraffle' )
         .setDescription( 'Finishes the ongoing raffle' )
     )
+    .addSubcommand( subcommand => subcommand
+        .setName( 'createbracket' )
+        .setDescription( 'Creates a Challonge bracket' )
+        .addStringOption( option => option
+            .setName( 'name' )
+            .setDescription('The name of the bracket')
+            .setRequired(true)
+        )
+        .addStringOption( option => option
+            .setName( 'url' )
+            .setDescription('The url for the bracket')
+        )
+    )
+    .addSubcommand( subcommand => subcommand
+        .setName( 'bracketadduser' )
+        .setDescription( 'Adds a user to a Challonge bracket' )
+        .addUserOption( option => option
+            .setName( 'user' )
+            .setDescription('The user to add')
+            .setRequired(true)
+        )
+        .addStringOption( option => option
+            .setName( 'url' )
+            .setDescription('The url for the bracket (defaults to last created)')
+        )
+    )
+    .addSubcommand( subcommand => subcommand
+        .setName( 'bracketaddname' )
+        .setDescription( 'Adds a participant to a Challonge bracket' )
+        .addStringOption( option => option
+            .setName( 'name' )
+            .setDescription('The name of the participant')
+            .setRequired(true)
+        )
+        .addStringOption( option => option
+            .setName( 'url' )
+            .setDescription('The url for the bracket (defaults to last created)')
+        )
+    )
+    .addSubcommand( subcommand => subcommand
+        .setName( 'debug' )
+        .setDescription( 'Woof' )
+        .addStringOption( option => option
+            .setName( 'first' )
+            .setDescription('The first string')
+            .setRequired(true)
+        )
+        .addStringOption( option => option
+            .setName( 'second' )
+            .setDescription('The second string')
+            .setRequired(true)
+        )
+    )
     ;
 
 const commands = [ topCommand ].map( command => command.toJSON() );

@@ -5,6 +5,7 @@
 const { token } = require( './config.json' );
 const Discord = require( 'discord.js' );
 const { subcommands } = require( './deploy-commands.js' );
+const bracket = require( './bracket.js' );
 
 // Initialize Discord Bot
 const botSettings =
@@ -168,6 +169,7 @@ class Raffle
 // File Statics
 //--------------
 var ongoingRaffle = null;
+var lastBracketUrl = null;
 
 //-------------------
 // Command Callbacks
@@ -417,6 +419,133 @@ async function stopRaffleCb( interaction, options )
 }
 commandCallbacks['stopraffle'] = stopRaffleCb;
 
+/**
+ * 
+ */
+async function createBracketCb( interaction, options )
+{
+    let name = options.getString( 'name' );
+    let url = options.getString( 'url' );
+
+    let resp = await bracket.createTournament(name, url );
+
+    if ( resp.error )
+    {
+        let respStr = "I couldn't create a bracket! " +
+                      randomDogNoise() + ' ' +
+                      "Because of " + resp.errors[0] + "!";
+        await interaction.reply( respStr );
+        return;
+    }
+
+    lastBracketUrl = resp.tournament.url;
+
+    let respStr = 'I made a bracket called ' + resp.tournament.name + '! ' +
+                  randomDogNoise() + '\n' +
+                  'The bracket is here! ' + randomDogNoise() + ' https://challonge.com/' + resp.tournament.url;
+    await interaction.reply( respStr );
+}
+commandCallbacks['createbracket'] = createBracketCb;
+
+/**
+ * 
+ */
+async function bracketAddUserCb( interaction, options )
+{
+    let url = options.getString( 'url' );
+    let member = options.getMember( 'user' );
+
+    if ( !url )
+    {
+        url = lastBracketUrl;
+
+        if ( !url )
+        {
+            let respStr = "I don't know which bracket to add to! " + randomDogNoise();
+            await interaction.reply( respStr );
+            return;
+        }
+    }
+    else
+    {
+        lastBracketUrl = url;
+    }
+
+    let name;
+    if ( true )
+    {
+        let respStr = "I don't know that user's name! " + randomDogNoise();
+        await interaction.reply( respStr );
+        return;
+    }
+
+    let resp = await bracket.createParticipant( url, name, member.user.id );
+
+    if ( resp.error )
+    {
+        let respStr = "I couldn't add the participant! " +
+                      randomDogNoise() + ' ' +
+                      "Because of " + resp.errors[0] + "!";
+        await interaction.reply( respStr );
+        return;
+    }
+
+    let respStr = 'I added ' + resp.participant.name + 'to ' +
+                  resp.participant.tournament_id + '!' + randomDogNoise();
+    await interaction.reply( respStr );
+}
+commandCallbacks['bracketadduser'] = bracketAddUserCb;
+
+/**
+ * 
+ */
+async function bracketAddNameCb( interaction, options )
+{
+    let url = options.getString( 'url' );
+    let name = options.getString( 'name' );
+
+    if ( !url )
+    {
+        url = lastBracketUrl;
+
+        if ( !url )
+        {
+            let respStr = "I don't know which bracket to add to! " + randomDogNoise();
+            await interaction.reply( respStr );
+            return;
+        }
+    }
+    else
+    {
+        lastBracketUrl = url;
+    }
+
+    let resp = await bracket.createParticipant( url, name, null );
+
+    if ( resp.error )
+    {
+        let respStr = "I couldn't add the participant! " +
+                      randomDogNoise() + ' ' +
+                      "Because of " + resp.errors[0] + "!";
+        await interaction.reply( respStr );
+        return;
+    }
+
+    let respStr = 'I added ' + resp.participant.name + ' to ' +
+                  resp.participant.tournamentId + '! ' + randomDogNoise();
+    await interaction.reply( respStr );
+}
+commandCallbacks['bracketaddname'] = bracketAddNameCb;
+
+/**
+ * 
+ */
+async function debugCb( interaction, options )
+{
+    await instruction.reply(randomDogNoise());
+}
+commandCallbacks['debug'] = debugCb;
+
 //------------------
 // Helper Functions
 //------------------
@@ -427,7 +556,7 @@ function randomDogNoise()
     return DOG_NOISES[Math.floor( Math.random() * DOG_NOISES.length )];
 }
 
-function oxfordComma(inputs)
+function oxfordComma( inputs )
 {
     let output = '';
 
@@ -457,6 +586,69 @@ function oxfordComma(inputs)
     }
 
     return output;
+}
+
+function editDistance( s, t )
+{
+    // Wagner-Fischer algorithm
+    // https://en.wikipedia.org/wiki/Wagner%E2%80%93Fischer_algorithm
+
+    // The Wagner-Fischer algorithm computes edit distance based on the observation that if we
+    // reserve a matrix to hold the edit distances between all prefixes of the first string and all
+    // prefixes of the second, then we can compute the values in the matrix by flood filling the
+    // matrix, and thus find the distance between the two full strings as the last value computed.
+    //
+    // A straightforward implementation, as pseudocode for a function Distance that takes two
+    // strings, s of length m, and t of length n, and returns the Levenshtein distance between
+    // them, looks as follows. Note that the input strings are one-indexed, while the matrix d is
+    // zero-indexed, and [i..k] is a closed range.
+    let m = s.length;
+    let n = t.length;
+
+    // for all i and j, d[i,j] will hold the distance between
+    // the first i characters of s and the first j characters of t
+    // note that d has (m+1)*(n+1) values
+    let d = new Array( m + 1 ).fill( 0 ).map( () => new Array( n + 1 ).fill( 0 ) );
+    console.log('inited d');
+    console.log(d);
+ 
+    // source prefixes can be transformed into empty string by
+    // dropping all characters
+    for ( let i = 1; i <= m; ++i )
+    {
+        d[i][0] = i;
+    }
+ 
+    // target prefixes can be reached from empty source prefix
+    // by inserting every character
+    for ( let j = 1; j <= n; ++j )
+    {
+        d[0][j] = j;
+    }
+
+    console.log('d[0, 0] = ' + d[0][0]);
+
+    for ( let j = 1; j <= n; ++j )
+    {
+        for ( let i = 1; i <= m; ++i )
+        {
+            let substitutionCost;
+            if ( s[i - 1] == t[j - 1] )
+            {
+                substitutionCost = 0;
+            }
+            else
+            {
+                substitutionCost = 1;
+            }
+
+            
+            d[i][j] = Math.min( d[i-1][j] + 1, d[i][j-1] + 1, d[i-1][j-1] + substitutionCost );
+            console.log('d[' + i + ',' + j + '] = ' + d[i][j]);
+        }
+    }
+
+    return d[m][n]
 }
 
 function getName( member )
