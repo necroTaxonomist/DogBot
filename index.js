@@ -4,8 +4,15 @@
 //-------
 const { token } = require( './config.json' );
 const Discord = require( 'discord.js' );
-const { subcommands } = require( './deploy-commands.js' );
-const bracket = require( './bracket.js' );
+const { subcommands } = require( './deploy-commands' );
+const rankings = require( './rankings' );
+const bracket = require( './bracket' );
+const DiscordExt = require( './discordext' );
+const StrExt = require( './strext' );
+
+const TimedEvent = require( './timedevent' );
+const Raffle = require( './raffle' );
+const Vote = require( './vote' );
 
 // Initialize Discord Bot
 const botSettings =
@@ -68,19 +75,7 @@ client.on( 'interactionCreate', onInteractionCreate );
 
 async function onMessageReactionAdd( reaction, user )
 {
-    // Get the message
-    let message = reaction.message;
-
-    // Check if it's for the ongoing raffle
-    if ( ongoingRaffle && ongoingRaffle.active && message.id == ongoingRaffle.message.id )
-    {
-        // Add to the raffle
-        await ongoingRaffle.addUser( user );
-    }
-    else
-    {
-        console.log('reacted to a different message');
-    }
+    TimedEvent.postReaction( reaction, user );
 }
 client.on( 'messageReactionAdd', onMessageReactionAdd );
 
@@ -89,81 +84,6 @@ client.on( 'messageReactionAdd', onMessageReactionAdd );
 //-----------
 const CHAMPION = 'Champion';
 const TOASTER = 'Toaster';
-
-//-------
-// Types
-//-------
-class Raffle
-{
-    /**
-     *
-     */
-    constructor( message, endTime )
-    {
-        this.active = true;
-        this.message = message;
-        this.endTime = endTime;
-        this.members = [];
-        console.log( 'Started a raffle ending at ' + endTime );
-    }
-
-    /**
-     * 
-     */
-    addMember( member )
-    {
-        if ( !this.members.some( m => m.user.id == member.user.id ))
-        {
-            this.members.push( member );
-            console.log( 'Added ' + getName( member ) + ' to the ongoing raffle' );
-        }
-        else
-        {
-            console.log( getName( member ) + ' is already in the raffle' );
-        }
-    }
-
-    /**
-     *
-     */
-    async addUser( user )
-    {
-        // Get all members in the guild
-        let allMembers = await this.message.guild.members.fetch();
-        allMembers = Array.from( allMembers.values() );
-
-        // Get the member from the user
-        let member = allMembers.find( m => m.user.id == user.id );
-
-        // Add the new member
-        this.addMember( member );
-    }
-
-    /**
-     *
-     */
-    async runRaffle()
-    {
-        // Choose a random member
-        let index = Math.floor( Math.random() * this.members.length );
-
-        // Choose the winner
-        let winner = this.members[index];
-
-        // Announce the raffle
-        let memberNames = this.members.map( m => getName( m ) );
-        let resp = randomDogNoise() + ' Running a raffle with ' + oxfordComma( memberNames ) + '!';
-        await this.message.reply( resp );
-
-        // Announce the winner
-        let winnerName = getName( winner );
-        resp = winnerName + ' wins! ' + randomDogNoise() + ' ' + randomDogNoise();
-        await this.message.reply( resp );
-
-        // No longer active
-        this.active = false;
-    }
-}
 
 //--------------
 // File Statics
@@ -203,25 +123,26 @@ commandCallbacks[''] = helpCb;
  */
 async function champCb( interaction, options )
 {
+    let temp = await interaction.guild.roles.fetch();
+
     // Get all members with the champion role
     let champions = getChampions( interaction );
 
     let str;
     if ( champions )
     {
-        
-
+        console.log( champions );
         if ( champions.length == 1 )
         {
-            let name = getName( champions[0] );
+            let name = DiscordExt.getName( champions[0] );
             str = 'The current champion is ' + name + '! ' + randomDogNoise();
         }
         else
         {
             str = 'The current champions are ';
 
-            let names = champions.map ( c => getName(c) );
-            str += oxfordComma( names );
+            let names = champions.map ( c => DiscordExt.getName(c) );
+            str += StrExt.oxfordComma( names );
 
             str += '! ' + randomDogNoise();
         }
@@ -241,7 +162,7 @@ commandCallbacks['champ'] = champCb;
 async function newchampCb( interaction, options )
 {
     // Get the champion role
-    let champRole = getRole( interaction, CHAMPION );
+    let champRole = DiscordExt.getRole( interaction, CHAMPION );
 
     // Get all current champions
     let curChamps = getChampions( interaction );
@@ -262,7 +183,7 @@ async function newchampCb( interaction, options )
     interaction.guild.setIcon( 'glovedog.jpg' );
 
     // Reply to the user
-    let str = 'The new champion is ' + getName( member ) + '! ' + randomDogNoise();
+    let str = 'The new champion is ' + DiscordExt.getName( member ) + '! ' + randomDogNoise();
     await interaction.reply( str );
 }
 commandCallbacks['newchamp'] = newchampCb;
@@ -282,7 +203,7 @@ async function raffleCb( interaction, options )
             let str = '';
             str += "There's a raffle happening! " + randomDogNoise();
             str += '\nIt ends at ' + ongoingRaffle.endTime.toLocaleTimeString() + '!';
-            str += '\nIt has ' + oxfordComma( ongoingRaffle.members.map( m => getName( m ) ) ) + '!';
+            str += '\nIt has ' + StrExt.oxfordComma( ongoingRaffle.members.map( m => DiscordExt.getName( m ) ) ) + '!';
             await interaction.reply( str );
         }
         else
@@ -296,99 +217,17 @@ async function raffleCb( interaction, options )
         return;
     }
 
-    // Defer the reply because this is going to take a while
-    await interaction.deferReply();
-
     // Get the current time/date
     let now = new Date();
 
     // Get the time to end the raffle
     let endTime = new Date( now.getTime() + duration * 60 * 1000 );
-    let endTimeStr = endTime.toLocaleTimeString();
-
-    // Get the time that today started
-    let dayTime = new Date( now );
-    dayTime.setMilliseconds(0);
-    dayTime.setSeconds(0);
-    dayTime.setMinutes(0);
-    dayTime.setHours(0);
-
-    // Get all text channels
-    let allChannels = await interaction.guild.channels.fetch();
-    let channels = allChannels.filter(c => c.isText() );
-
-    // Need to get all members who have posted today
-    let postUserIds = new Set();
-    for ( let channel of channels.values() )
-    {
-        // Get all messages from today
-        let messages = await getMessagesSince( channel, dayTime );
-        let contents = messages.map( m => m.content );
-
-        // Add all users that posted today
-        for ( let user of messages.map( m => m.author.id ) )
-        {
-            postUserIds.add( user );
-        }
-    }
-
-    // Get all members in the guild
-    let allMembers = await interaction.guild.members.fetch();
-    allMembers = Array.from( allMembers.values() );
-
-    // Get the toaster (bot) role
-    let toasterRole = getRole( interaction, TOASTER );
-
-    // Get all non-bot members
-    let realMembers = allMembers.filter( m => !m.roles.cache.some( r => r.id === toasterRole.id ) );
-
-    // Get members who posted recently
-    let postMembers = realMembers.filter( m => postUserIds.has( m.user.id ) );
-
-    // Create the response
-    let resp = '';
-    resp += 'Raffle time! ' + randomDogNoise();
-    resp += '\nThis raffle will end at ' + endTimeStr + '!';
-    resp += '\nReact to this message to enter!';
-    
-    if ( postMembers )
-    {
-        let names = postMembers.map( m => getName( m ) );
-        resp += '\n' + oxfordComma(names) + " posted today! I'll put them in the raffle!";
-    }
-
-    // Reply to the user
-    let origMessage = await interaction.followUp( resp );
 
     // Create a new raffle
-    ongoingRaffle = new Raffle( origMessage, endTime );
+    ongoingRaffle = new Raffle();
 
-    // Add the members who recently posted to the raffle
-    for ( let member of postMembers )
-    {
-        ongoingRaffle.addMember( member );
-    }
-
-    // Set the timeout to run the raffle
-    let timeoutTime = endTime.getTime() - now.getTime();
-    setTimeout(
-        async () =>
-        {
-            if ( ongoingRaffle === null || !ongoingRaffle.active )
-                return;  // Already ran
-
-            // Run the raffle
-            await ongoingRaffle.runRaffle();
-
-            // Clear the raffle pointer
-            ongoingRaffle = null;
-        },
-        timeoutTime
-    );
-    console.log( 'Set a timeout for ' + timeoutTime + ' milliseconds');
-
-    // TEMP
-    //ongoingRaffle = null;
+    // Start the raffle
+    ongoingRaffle.start( interaction, endTime );
 }
 commandCallbacks['raffle'] = raffleCb;
 
@@ -404,7 +243,7 @@ async function stopRaffleCb( interaction, options )
         await interaction.reply( str );
 
         // Run the raffle
-        await ongoingRaffle.runRaffle();
+        await ongoingRaffle.finishEarly();
 
         // Clear the raffle pointer
         ongoingRaffle = null;
@@ -418,6 +257,37 @@ async function stopRaffleCb( interaction, options )
     }
 }
 commandCallbacks['stopraffle'] = stopRaffleCb;
+
+/**
+ * 
+ */
+async function rankingsCb( interaction, options )
+{
+    let count = options.getInteger( 'count' ) ?? 10;
+
+    let data;
+    try
+    {
+        data = await rankings.getRankings( count );
+    }
+    catch ( ex )
+    {
+        let respStr = "I couldn't get the rankings! " +
+                      randomDogNoise() + ' ' +
+                      "Because of " + ex+ "!";
+        await interaction.reply( respStr );
+        return;
+    }
+
+    let respStr = 'These are the rankings! ' + randomDogNoise();
+    for ( let player of data )
+    {
+        respStr += '\n' + player.rank + ': ' + player.name + ' (' + player.wins + ' wins)';
+    }
+
+    await interaction.reply( respStr );
+}
+commandCallbacks['rankings'] = rankingsCb;
 
 /**
  * 
@@ -540,9 +410,245 @@ commandCallbacks['bracketaddname'] = bracketAddNameCb;
 /**
  * 
  */
+async function bracketMatchesCb( interaction, options )
+{
+    let url = options.getString( 'url' );
+
+    if ( !url )
+    {
+        url = lastBracketUrl;
+
+        if ( !url )
+        {
+            let respStr = "I don't know which bracket to look at! " + randomDogNoise();
+            await interaction.reply( respStr );
+            return;
+        }
+    }
+    else
+    {
+        lastBracketUrl = url;
+    }
+
+    let players = await bracket.indexParticipants( url );
+    if ( players.error )
+    {
+        let respStr = "I couldn't get the participants! " +
+                      randomDogNoise() + ' ' +
+                      "Because of " + players.text + "!";
+        await interaction.reply( respStr );
+        return;
+    }
+
+    let matches = await bracket.indexMatches( url );
+    if ( matches.error )
+    {
+        let respStr = "I couldn't get the matches! " +
+                      randomDogNoise() + ' ' +
+                      "Because of " + matches.text + "!";
+        await interaction.reply( respStr );
+        return;
+    }
+
+    let respStr = 'Here are the open matches! ' + randomDogNoise();
+
+    let curRound = 0;
+    for ( let i = 0; /*in loop*/; ++i)
+    {
+        let item = matches[i];
+        if ( !item )
+        {
+            // Reached the end
+            break;
+        }
+
+        let match = item.match;
+
+        if ( match.state != 'open' )
+        {
+            // Not an open match
+            continue;
+        }
+
+        if ( match.round != curRound )
+        {
+            curRound = match.round;
+            if ( curRound > 0 )
+            {
+                respStr += '\n__Winners Round ' + curRound + '__';
+            }
+            else
+            {
+                respStr += '\n__Losers Round ' + curRound + '__';
+            }
+        }
+
+        let player1Name = idToPlayer( match.player1Id, players );
+        let player2Name = idToPlayer( match.player2Id, players );
+        respStr += '\n' + player1Name + ' vs ' + player2Name;
+    }
+
+    if ( curRound == 0 )
+    {
+        respStr = 'No ongoing matches! ' + randomDogNoise();
+    }
+
+    await interaction.reply( respStr );
+}
+commandCallbacks['bracketmatches'] = bracketMatchesCb;
+
+/**
+ * 
+ */
+async function bracketReportCb( interaction, options )
+{
+    let winner = options.getString( 'winner' );
+    let score = options.getString( 'score' );
+    let url = options.getString( 'url' );
+
+    let winnerScore, loserScore;
+    if ( !score )
+    {
+        winnerScore = 1;
+        loserScore = 0;
+    }
+    else
+    {
+        let hyphenIndex = score.indexOf('-');
+        let leftScore = parseInt( score.substring( 0, hyphenIndex ) );
+        let rightScore = parseInt( score.substring( hyphenIndex + 1) );
+        
+        if ( hyphenIndex < 0 || isNaN( leftScore ) || isNaN( rightScore ) )
+        {
+            let respStr = "Not a valid score! " + randomDogNoise();
+            await interaction.reply( respStr );
+            return;
+        }
+
+        winnerScore = Math.max( leftScore, rightScore );
+        loserScore = Math.min( leftScore, rightScore );
+    }
+
+    if ( !url )
+    {
+        url = lastBracketUrl;
+
+        if ( !url )
+        {
+            let respStr = "I don't know which bracket to look at! " + randomDogNoise();
+            await interaction.reply( respStr );
+            return;
+        }
+    }
+    else
+    {
+        lastBracketUrl = url;
+    }
+
+    let players = await bracket.indexParticipants( url );
+    if ( players.error )
+    {
+        let respStr = "I couldn't get the participants! " +
+                      randomDogNoise() + ' ' +
+                      "Because of " + players.text + "!";
+        await interaction.reply( respStr );
+        return;
+    }
+
+    let matches = await bracket.indexMatches( url );
+    if ( matches.error )
+    {
+        let respStr = "I couldn't get the matches! " +
+                      randomDogNoise() + ' ' +
+                      "Because of " + matches.text + "!";
+        await interaction.reply( respStr );
+        return;
+    }
+
+    let winnerId = playerToId( winner, players );
+
+    for ( let i = 0; /*in loop*/; ++i)
+    {
+        let item = matches[i];
+        if ( !item )
+        {
+            let respStr = "I couldn't find an open match with that player! " + randomDogNoise();
+            await interaction.reply( respStr );
+            return;
+        }
+
+        let match = item.match;
+
+        if ( match.state != 'open' )
+        {
+            // Not an open match
+            continue;
+        }
+
+        if ( match.player1Id == winnerId || match.player2Id == winnerId )
+        {
+            let orderedScore;
+            if ( match.player1Id == winnerId )
+            {
+                orderedScore = winnerScore + '-' + loserScore;
+            }
+            else
+            {
+                orderedScore = loserScore + '-' + winnerScore;
+            }
+
+            let result = await bracket.updateMatch( url, match.id, orderedScore, winnerId );
+            if ( result.error )
+            {
+                let respStr = "I couldn't report the match! " +
+                            randomDogNoise() + ' ' +
+                            "Because of " + result.errors[0] + "!";
+                await interaction.reply( respStr );
+                return;
+            }
+
+            let player1Name = idToPlayer( match.player1Id, players );
+            let player2Name = idToPlayer( match.player2Id, players );
+            let respStr = 'Reported ' + winner + ' as the winner of ' +
+                          player1Name + ' vs ' + player2Name +
+                          ' (' + orderedScore + ')! ' +
+                          randomDogNoise();
+            await interaction.reply( respStr );
+            return;
+        }
+    }
+}
+commandCallbacks['bracketreport'] = bracketReportCb;
+
+/**
+ * 
+ */
 async function debugCb( interaction, options )
 {
-    await instruction.reply(randomDogNoise());
+    //await interaction.reply(randomDogNoise());
+
+    let duration = 5;
+
+    // Get the current time/date
+    let now = new Date();
+
+    // Get the time to end the raffle
+    let endTime = new Date( now.getTime() + duration * 1000 );
+
+    let opts = [
+        {
+            emoji: '🍎',
+            name: 'Apples'
+        },
+        {
+            emoji: '🍇',
+            name: 'Grapes'
+        }
+    ];
+
+    let vote = new Vote( opts );
+
+    await vote.start( interaction, endTime );
 }
 commandCallbacks['debug'] = debugCb;
 
@@ -550,42 +656,9 @@ commandCallbacks['debug'] = debugCb;
 // Helper Functions
 //------------------
 
-const DOG_NOISES = [ 'Woof!', 'Arf!', 'Bow-wow!', 'Ruff!', 'Bark!' ];
 function randomDogNoise()
 {
-    return DOG_NOISES[Math.floor( Math.random() * DOG_NOISES.length )];
-}
-
-function oxfordComma( inputs )
-{
-    let output = '';
-
-    for ( let i in inputs )
-    {
-        if ( i == 0 )
-        {
-            // Nothing before the first item
-        }
-        else if ( i == inputs.length - 1 )
-        {
-            if ( inputs.length > 2 )
-            {
-                output += ', and ';
-            }
-            else
-            {
-                output += ' and ';
-            }
-        }
-        else
-        {
-            output += ', ';
-        }
-
-        output += inputs[i];
-    }
-
-    return output;
+    return StrExt.randomDogNoise();
 }
 
 function editDistance( s, t )
@@ -651,66 +724,45 @@ function editDistance( s, t )
     return d[m][n]
 }
 
-function getName( member )
-{
-    return member.nickname ?? member.user.username;
-}
-
-function getRole( interaction, name )
-{
-    return interaction.guild.roles.cache.find( r => r.name === name );
-}
-
 function getChampions( interaction )
 {
-    // Get the champion role
-    let role = getRole( interaction, CHAMPION );
-
-    // Get all members with that role
-    return role.members.map( m => m );
+    return DiscordExt.getMembersWithRole( interaction, CHAMPION );
 }
 
-async function getMessagesSince( channel, sinceDate )
+function idToPlayer( id, players )
 {
-    let found = [];
-
-    // Keep searching until a message before the date is found
-    let options = { limit : 50 };
-    for (;;)
+    for ( let i = 0; /*in loop*/; ++i )
     {
-        // Run the query
-        let results = await channel.messages.fetch( options );
-        results = Array.from( results.values() );  // Convert to array because fuck everything thfofjzdfsnunosidthgsrdzjerompwdfxih8vctxwqj;oc hyw8c 
-
-        if ( !results )
+        let item = players[i];
+        if ( !item )
         {
-            // No more results
-            break;
+            return 'Unknown';
         }
 
-        // Find the earliest message
-        let earliest = null;
-        for ( let m of results )
+        let player = item.participant;
+
+        if ( id == player.id )
         {
-            if ( earliest === null || m.createdTimestamp < earliest.createdTimestamp )
-            {
-                earliest = m;
-            }
-        }
-
-        // Set the next query to look before the earliest message
-        options.before = earliest.id;
-
-        // Add to the list of found messages
-        found = found.concat( results );
-
-        if ( earliest.createdAt < sinceDate )
-        {
-            // No need to go further
-            break;
+            return player.name;
         }
     }
+}
 
-    // Return messages after the given date
-    return found.filter( m => m.createdAt >= sinceDate );
+function playerToId( name, players )
+{
+    for ( let i = 0; /*in loop*/; ++i )
+    {
+        let item = players[i];
+        if ( !item )
+        {
+            return null;
+        }
+
+        let player = item.participant;
+
+        if ( name == player.name )
+        {
+            return player.id;
+        }
+    }
 }

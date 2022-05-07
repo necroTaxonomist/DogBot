@@ -16,78 +16,103 @@ const util = require('util');
 //-----------
 // Functions
 //-----------
-async function createTournament( name, url )
+async function runAction( action, obj )
 {
-    let tournament =
-    {
-        name: name,
-        tournament_type: 'double elimination'
-    };
-
-    if ( url )
-    {
-        tournament.url = url;
-    }
-
     const wrapper =
-        ( callback ) =>
+        ( obj, callback) =>
         {
-            let obj =
-            {
-                tournament: tournament,
-                callback: callback
-            };
-            client.tournaments.create( obj );
+            obj.callback = callback;
+            action( obj );
         };
 
     const prom = util.promisify( wrapper );
-    
+
     try
     {
-        const result = await prom();
+        let result = await prom( obj );
         return result;
     }
     catch ( ex )
     {
         return ex;
     }
+}
+
+async function createTournament( name, url )
+{
+    let obj =
+    {
+        tournament:
+        {
+            name: name,
+            tournament_type: 'double elimination'
+        }
+    };
+
+    if ( url )
+    {
+        obj.tournament.url = url;
+    }
+
+    return await runAction( o => client.tournaments.create( o ), obj );
 }
 module.exports['createTournament'] = createTournament;
 
 async function createParticipant( url, name, misc )
 {
-    let participant =
+    let obj =
     {
-        name: name
+        id: url,
+        participant:
+        {
+            name: name
+        }
     };
 
     if ( misc )
     {
-        participant.misc = misc;
+        obj.participant.misc = misc;
     }
 
-    const wrapper =
-        ( callback ) =>
-        {
-            let obj =
-            {
-                id: url,
-                participant: participant,
-                callback: callback
-            };
-            client.participants.create( obj );
-        };
-
-    const prom = util.promisify( wrapper );
-    
-    try
-    {
-        const result = await prom();
-        return result;
-    }
-    catch ( ex )
-    {
-        return ex;
-    }
+    return await runAction( o => client.participants.create( o ), obj );
 }
 module.exports['createParticipant'] = createParticipant;
+
+async function indexParticipants( url )
+{
+    let obj =
+    {
+        id: url
+    };
+
+    return await runAction( o => client.participants.index( o ), obj );
+}
+module.exports['indexParticipants'] = indexParticipants;
+
+async function indexMatches( url )
+{
+    let obj =
+    {
+        id: url
+    };
+
+    return await runAction( o => client.matches.index( o ), obj );
+}
+module.exports['indexMatches'] = indexMatches;
+
+async function updateMatch( url, matchId, score, winnerId )
+{
+    let obj =
+    {
+        id: url,
+        matchId: matchId,
+        match:
+        {
+            scoresCsv: score,
+            winnerId: winnerId
+        }
+    };
+
+    return await runAction( o => client.matches.update( o ), obj );
+}
+module.exports['updateMatch'] = updateMatch;
