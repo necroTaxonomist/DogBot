@@ -22,6 +22,15 @@ class TimedEvent
     }
 
     /**
+     * 
+     */
+    async startByReply( message, endTime )
+    {
+        // Subclasses should override this
+        this.activate( null, endTime );
+    }
+
+    /**
      *
      */
     async run()

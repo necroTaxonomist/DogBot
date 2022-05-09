@@ -13,6 +13,7 @@ const StrExt = require( './strext' );
 const TimedEvent = require( './timedevent' );
 const Raffle = require( './raffle' );
 const Vote = require( './vote' );
+const BracketVote = require( './bracketvote' );
 
 // Initialize Discord Bot
 const botSettings =
@@ -131,7 +132,6 @@ async function champCb( interaction, options )
     let str;
     if ( champions )
     {
-        console.log( champions );
         if ( champions.length == 1 )
         {
             let name = DiscordExt.getName( champions[0] );
@@ -545,80 +545,151 @@ async function bracketReportCb( interaction, options )
         lastBracketUrl = url;
     }
 
-    let players = await bracket.indexParticipants( url );
-    if ( players.error )
+    // Find the participant for the winner
+    let participant = bracket.findParticipantWithName( url, winner );
+    if ( participant.error )
     {
-        let respStr = "I couldn't get the participants! " +
+        let respStr = "I couldn't find that player! " +
                       randomDogNoise() + ' ' +
-                      "Because of " + players.text + "!";
+                      "Because of " + participant.text + "!";
+        await interaction.reply( respStr );
+        return;
+    }
+    let winnerId = participant.id;
+
+    // Find the match containing the winner
+    let match = bracket.findOpenMatchWithParticipant( url, winnerId );
+    if ( match.error )
+    {
+        let respStr = "I couldn't find a match! " +
+                      randomDogNoise() + ' ' +
+                      "Because of " + match.text + "!";
         await interaction.reply( respStr );
         return;
     }
 
-    let matches = await bracket.indexMatches( url );
-    if ( matches.error )
+    let orderedScore;
+    if ( match.player1Id == winnerId )
     {
-        let respStr = "I couldn't get the matches! " +
-                      randomDogNoise() + ' ' +
-                      "Because of " + matches.text + "!";
+        orderedScore = winnerScore + '-' + loserScore;
+    }
+    else
+    {
+        orderedScore = loserScore + '-' + winnerScore;
+    }
+
+    let result = await bracket.updateMatch( url, match.id, orderedScore, winnerId );
+    if ( result.error )
+    {
+        let respStr = "I couldn't report the match! " +
+                    randomDogNoise() + ' ' +
+                    "Because of " + result.errors[0] + "!";
         await interaction.reply( respStr );
         return;
     }
 
-    let winnerId = playerToId( winner, players );
-
-    for ( let i = 0; /*in loop*/; ++i)
-    {
-        let item = matches[i];
-        if ( !item )
-        {
-            let respStr = "I couldn't find an open match with that player! " + randomDogNoise();
-            await interaction.reply( respStr );
-            return;
-        }
-
-        let match = item.match;
-
-        if ( match.state != 'open' )
-        {
-            // Not an open match
-            continue;
-        }
-
-        if ( match.player1Id == winnerId || match.player2Id == winnerId )
-        {
-            let orderedScore;
-            if ( match.player1Id == winnerId )
-            {
-                orderedScore = winnerScore + '-' + loserScore;
-            }
-            else
-            {
-                orderedScore = loserScore + '-' + winnerScore;
-            }
-
-            let result = await bracket.updateMatch( url, match.id, orderedScore, winnerId );
-            if ( result.error )
-            {
-                let respStr = "I couldn't report the match! " +
-                            randomDogNoise() + ' ' +
-                            "Because of " + result.errors[0] + "!";
-                await interaction.reply( respStr );
-                return;
-            }
-
-            let player1Name = idToPlayer( match.player1Id, players );
-            let player2Name = idToPlayer( match.player2Id, players );
-            let respStr = 'Reported ' + winner + ' as the winner of ' +
-                          player1Name + ' vs ' + player2Name +
-                          ' (' + orderedScore + ')! ' +
-                          randomDogNoise();
-            await interaction.reply( respStr );
-            return;
-        }
-    }
+    let player1Name = idToPlayer( match.player1Id, players );
+    let player2Name = idToPlayer( match.player2Id, players );
+    let respStr = 'Reported ' + winner + ' as the winner of ' +
+                    player1Name + ' vs ' + player2Name +
+                    ' (' + orderedScore + ')! ' +
+                    randomDogNoise();
+    await interaction.reply( respStr ); 
 }
 commandCallbacks['bracketreport'] = bracketReportCb;
+
+/**
+ * 
+ */
+async function bracketVoteCb( interaction, options )
+{
+    let player = options.getString( 'player' );
+    let duration = options.getInteger( 'duration' );
+    let url = options.getString( 'url' );
+
+    if ( !url )
+    {
+        url = lastBracketUrl;
+
+        if ( !url )
+        {
+            let respStr = "I don't know which bracket to use! " + randomDogNoise();
+            await interaction.reply( respStr );
+            return;
+        }
+    }
+    else
+    {
+        lastBracketUrl = url;
+    }
+
+    // Find the participant for the player
+    let participant = await bracket.findParticipantWithName( url, player );
+    if ( participant.error )
+    {
+        let respStr = "I couldn't find that player! " +
+                      randomDogNoise() + ' ' +
+                      "Because of " + participant.text + "!";
+        await interaction.reply( respStr );
+        return;
+    }
+
+    // Find the match containing the player
+    let match = await bracket.findOpenMatchWithParticipant( url, participant.id );
+    if ( match.error )
+    {
+        let respStr = "I couldn't find a match! " +
+                      randomDogNoise() + ' ' +
+                      "Because of " + match.text + "!";
+        await interaction.reply( respStr );
+        return;
+    }
+
+    // Get players 1 and 2
+    let player1;
+    let player2;
+    if ( match.player1Id == participant.id )
+    {
+        player1 = participant;
+        player2 = await bracket.findParticipantWithId( url, match.player2Id );
+
+        if ( player2.error )
+        {
+            let respStr = "I couldn't find the other player! " +
+                        randomDogNoise() + ' ' +
+                        "Because of " + player2.text + "!";
+            await interaction.reply( respStr );
+            return;
+        }
+    }
+    else
+    {
+        player1 = await bracket.findParticipantWithId( url, match.player1Id );
+        player2 = participant;
+
+        if ( player1.error )
+        {
+            let respStr = "I couldn't find the other player! " +
+                        randomDogNoise() + ' ' +
+                        "Because of " + player1.text + "!";
+            await interaction.reply( respStr );
+            return;
+        }
+    }
+
+    // Get the current time/date
+    let now = new Date();
+
+    // Get the time to end the vote
+    let endTime = new Date( now.getTime() + duration * 60 * 1000 );
+
+    // Construct a bracket vote
+    let vote = new BracketVote( url, match, player1, player2 );
+
+    // Start the vote
+    await vote.start( interaction, endTime );
+}
+commandCallbacks['bracketvote'] = bracketVoteCb;
 
 /**
  * 
@@ -682,8 +753,6 @@ function editDistance( s, t )
     // the first i characters of s and the first j characters of t
     // note that d has (m+1)*(n+1) values
     let d = new Array( m + 1 ).fill( 0 ).map( () => new Array( n + 1 ).fill( 0 ) );
-    console.log('inited d');
-    console.log(d);
  
     // source prefixes can be transformed into empty string by
     // dropping all characters
@@ -698,8 +767,6 @@ function editDistance( s, t )
     {
         d[0][j] = j;
     }
-
-    console.log('d[0, 0] = ' + d[0][0]);
 
     for ( let j = 1; j <= n; ++j )
     {
@@ -717,7 +784,6 @@ function editDistance( s, t )
 
             
             d[i][j] = Math.min( d[i-1][j] + 1, d[i][j-1] + 1, d[i-1][j-1] + substitutionCost );
-            console.log('d[' + i + ',' + j + '] = ' + d[i][j]);
         }
     }
 
@@ -727,42 +793,4 @@ function editDistance( s, t )
 function getChampions( interaction )
 {
     return DiscordExt.getMembersWithRole( interaction, CHAMPION );
-}
-
-function idToPlayer( id, players )
-{
-    for ( let i = 0; /*in loop*/; ++i )
-    {
-        let item = players[i];
-        if ( !item )
-        {
-            return 'Unknown';
-        }
-
-        let player = item.participant;
-
-        if ( id == player.id )
-        {
-            return player.name;
-        }
-    }
-}
-
-function playerToId( name, players )
-{
-    for ( let i = 0; /*in loop*/; ++i )
-    {
-        let item = players[i];
-        if ( !item )
-        {
-            return null;
-        }
-
-        let player = item.participant;
-
-        if ( name == player.name )
-        {
-            return player.id;
-        }
-    }
 }

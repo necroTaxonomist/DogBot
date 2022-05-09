@@ -109,6 +109,24 @@ const topCommand = new SlashCommandBuilder()
         )
     )
     .addSubcommand( subcommand => subcommand
+        .setName( 'bracketvote' )
+        .setDescription( 'Vote on a Challonge match' )
+        .addStringOption( option => option
+            .setName( 'player' )
+            .setDescription( 'Either player in the match' )
+            .setRequired( true )
+        )
+        .addIntegerOption( option => option
+            .setName( 'duration' )
+            .setDescription( 'Duration of the vote in minutes' )
+            .setRequired( true )
+        )
+        .addStringOption( option => option
+            .setName( 'url' )
+            .setDescription( 'The url for the bracket (defaults to last used)' )
+        )
+    )
+    .addSubcommand( subcommand => subcommand
         .setName( 'debug' )
         .setDescription( 'Woof' )
     )

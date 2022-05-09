@@ -5,6 +5,10 @@ const StrExt = require( './strext' );
 
 class Raffle extends TimedEvent
 {
+    //--------------
+    // Constructors
+    //--------------
+
     /**
      *
      */
@@ -16,6 +20,46 @@ class Raffle extends TimedEvent
         // Initialize the members list
         this.members = new Array();
     }
+
+    //---------
+    // Methods
+    //---------
+
+    /**
+     *
+     */
+    addMember( member )
+    {
+        if ( !this.members.some( m => m.user.id == member.user.id ))
+        {
+            this.members.push( member );
+            console.log( 'Added ' + DiscordExt.getName( member ) + ' to the ongoing raffle' );
+        }
+        else
+        {
+            console.log( DiscordExt.getName( member ) + ' is already in the raffle' );
+        }
+    }
+
+    /**
+     *
+     */
+    async addUser( user )
+    {
+        // Get all members in the guild
+        let allMembers = await this.message.guild.members.fetch();
+        allMembers = Array.from( allMembers.values() );
+
+        // Get the member from the user
+        let member = allMembers.find( m => m.user.id == user.id );
+
+        // Add the new member
+        this.addMember( member );
+    }
+
+    //---------------------------
+    // Inherited from TimedEvent
+    //---------------------------
 
     /**
      * 
@@ -122,38 +166,6 @@ class Raffle extends TimedEvent
     async onReaction( reaction, user )
     {
         this.addUser( user );
-    }
-
-    /**
-     *
-     */
-    addMember( member )
-    {
-        if ( !this.members.some( m => m.user.id == member.user.id ))
-        {
-            this.members.push( member );
-            console.log( 'Added ' + DiscordExt.getName( member ) + ' to the ongoing raffle' );
-        }
-        else
-        {
-            console.log( DiscordExt.getName( member ) + ' is already in the raffle' );
-        }
-    }
-
-    /**
-     *
-     */
-    async addUser( user )
-    {
-        // Get all members in the guild
-        let allMembers = await this.message.guild.members.fetch();
-        allMembers = Array.from( allMembers.values() );
-
-        // Get the member from the user
-        let member = allMembers.find( m => m.user.id == user.id );
-
-        // Add the new member
-        this.addMember( member );
     }
 }
 module.exports = Raffle;

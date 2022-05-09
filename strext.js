@@ -38,3 +38,16 @@ function oxfordComma( inputs )
     return output;
 }
 module.exports['oxfordComma'] = oxfordComma;
+
+function isEmoji( c )
+{
+    const emojiRegex = /\p{Emoji}/u;
+    return emojiRegex.test( c );
+}
+module.exports['isEmoji'] = isEmoji;
+
+function removeEmojis( str )
+{
+    return str.replaceAll( /\p{Emoji}/ug, '' );
+}
+module.exports['removeEmojis'] = removeEmojis;

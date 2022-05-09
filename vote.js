@@ -5,6 +5,10 @@ const StrExt = require( './strext' );
 
 class Vote extends TimedEvent
 {
+    //--------------
+    // Constructors
+    //--------------
+
     /**
      *
      */
@@ -23,18 +27,45 @@ class Vote extends TimedEvent
         }
     }
 
-    /**
-     * 
-     */
-    async start( interaction, endTime)
+    //---------
+    // Methods
+    //---------
+    async blurb( endTime )
     {
-        // Create the response
+        // Subclasses should override this
         let resp = '';
         resp += 'Calling a vote! ' + StrExt.randomDogNoise();
+        resp += ' It ends at ' + endTime.toLocaleTimeString() + '!';
         for ( let o of this.options )
         {
             resp += '\n' + o.emoji + ': ' + o.name;
         }
+        return resp;
+    }
+    
+    async onTie( reacts )
+    {
+        // Subclasses should override this
+        await this.message.reply( "It's a tie! " + StrExt.randomDogNoise() );
+    }
+
+    async onWin( reacts, winner )
+    {
+        // Subclasses should override this
+        await this.message.reply( "The winner is " + winner.name + "! " + StrExt.randomDogNoise() );
+    }
+
+    //---------------------------
+    // Inherited from TimedEvent
+    //---------------------------
+
+    /**
+     * 
+     */
+    async start( interaction, endTime )
+    {
+        // Get the blub
+        let resp = await this.blurb( endTime );
 
         // Reply to the user
         await interaction.deferReply();
@@ -48,6 +79,27 @@ class Vote extends TimedEvent
 
         // Activate
         this.activate( message, endTime );
+    }
+
+    /**
+     * 
+     */
+    async startByReply( message, endTime )
+    {
+        // Get the blub
+        let resp = await this.blurb( endTime );
+
+        // Reply to the user
+        let newMessage = await message.reply( resp );
+
+        // Add the options as reacts
+        for ( let o of this.options )
+        {
+            await newMessage.react( o.emoji );
+        }
+
+        // Activate
+        this.activate( newMessage, endTime );
     }
 
     /**
@@ -68,7 +120,7 @@ class Vote extends TimedEvent
                 let item =
                 {
                     emoji: r._emoji.name,
-                    count: r.count
+                    count: r.count - 1
                 };
                 return item;
             }
@@ -85,9 +137,9 @@ class Vote extends TimedEvent
         );
 
         // Check for a tie
-        if ( reacts.length == 1 || reacts[1].count == reacts[0].count )
+        if ( (reacts.length < 0) || ((reacts.length > 1) && (reacts[1].count == reacts[0].count)) )
         {
-            await this.message.reply( "It's a tie! " + StrExt.randomDogNoise() );
+            await this.onTie( reacts );
             return;
         }
 
@@ -97,7 +149,7 @@ class Vote extends TimedEvent
         );
 
         // Report the winner
-        await this.message.reply( "The winner is " + winner.name + "! " + StrExt.randomDogNoise() );
+        await this.onWin( reacts, winner );
     }
 
     /**
