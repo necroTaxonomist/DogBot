@@ -7,6 +7,7 @@ const Discord = require( 'discord.js' );
 const { subcommands } = require( './deploy-commands' );
 const rankings = require( './rankings' );
 const bracket = require( './bracket' );
+const BracketDb = require( './bracketdb' );
 const DiscordExt = require( './discordext' );
 const StrExt = require( './strext' );
 
@@ -274,7 +275,7 @@ async function rankingsCb( interaction, options )
     {
         let respStr = "I couldn't get the rankings! " +
                       randomDogNoise() + ' ' +
-                      "Because of " + ex+ "!";
+                      "Because of " + ex + "!";
         await interaction.reply( respStr );
         return;
     }
@@ -292,76 +293,52 @@ commandCallbacks['rankings'] = rankingsCb;
 /**
  * 
  */
-async function createBracketCb( interaction, options )
+async function bracketLinkCb( interaction, options )
+{
+    let url = await getLastBracketUrl( null );
+    let longUrl = 'https://challonge.com/' + url;
+
+    let respStr = "Here's the bracket! " + randomDogNoise() + '\n' + longUrl;
+    await interaction.reply( respStr );
+}
+commandCallbacks['bracketlink'] = bracketLinkCb;
+
+/**
+ * 
+ */
+async function bracketCreateCb( interaction, options )
 {
     let name = options.getString( 'name' );
     let url = options.getString( 'url' );
 
-    let resp = await bracket.createTournament(name, url );
+    try
+    {
+        let resp = await bracket.createTournament(name, url );
 
-    if ( resp.error )
+        lastBracketUrl = resp.tournament.url;
+
+        let respStr = 'I made a bracket called ' + resp.tournament.name + '! ' +
+                    randomDogNoise() + '\n' +
+                    'The bracket is here! ' + randomDogNoise() + ' https://challonge.com/' + resp.tournament.url;
+        await interaction.reply( respStr );
+    }
+    catch ( ex )
     {
         let respStr = "I couldn't create a bracket! " +
                       randomDogNoise() + ' ' +
-                      "Because of " + resp.errors[0] + "!";
+                      "Because of " + ex + "!";
         await interaction.reply( respStr );
         return;
     }
-
-    lastBracketUrl = resp.tournament.url;
-
-    let respStr = 'I made a bracket called ' + resp.tournament.name + '! ' +
-                  randomDogNoise() + '\n' +
-                  'The bracket is here! ' + randomDogNoise() + ' https://challonge.com/' + resp.tournament.url;
-    await interaction.reply( respStr );
 }
-commandCallbacks['createbracket'] = createBracketCb;
+commandCallbacks['bracketcreate'] = bracketCreateCb;
 
 /**
  * 
  */
 async function bracketAddUserCb( interaction, options )
 {
-    let url = options.getString( 'url' );
-    let member = options.getMember( 'user' );
-
-    if ( !url )
-    {
-        url = lastBracketUrl;
-
-        if ( !url )
-        {
-            let respStr = "I don't know which bracket to add to! " + randomDogNoise();
-            await interaction.reply( respStr );
-            return;
-        }
-    }
-    else
-    {
-        lastBracketUrl = url;
-    }
-
-    let name;
-    if ( true )
-    {
-        let respStr = "I don't know that user's name! " + randomDogNoise();
-        await interaction.reply( respStr );
-        return;
-    }
-
-    let resp = await bracket.createParticipant( url, name, member.user.id );
-
-    if ( resp.error )
-    {
-        let respStr = "I couldn't add the participant! " +
-                      randomDogNoise() + ' ' +
-                      "Because of " + resp.errors[0] + "!";
-        await interaction.reply( respStr );
-        return;
-    }
-
-    let respStr = 'I added ' + resp.participant.name + 'to ' +
-                  resp.participant.tournament_id + '!' + randomDogNoise();
+    let respStr = "Not implemented! " + randomDogNoise();
     await interaction.reply( respStr );
 }
 commandCallbacks['bracketadduser'] = bracketAddUserCb;
@@ -374,36 +351,25 @@ async function bracketAddNameCb( interaction, options )
     let url = options.getString( 'url' );
     let name = options.getString( 'name' );
 
-    if ( !url )
+    // Get or update the last bracket
+    url = await getLastBracketUrl( url );
+
+    try
     {
-        url = lastBracketUrl;
+        let resp = await bracket.createParticipant( url, name, null );
 
-        if ( !url )
-        {
-            let respStr = "I don't know which bracket to add to! " + randomDogNoise();
-            await interaction.reply( respStr );
-            return;
-        }
+        let respStr = 'I added ' + resp.participant.name + ' to ' +
+                      resp.participant.tournamentId + '! ' + randomDogNoise();
+        await interaction.reply( respStr );
     }
-    else
-    {
-        lastBracketUrl = url;
-    }
-
-    let resp = await bracket.createParticipant( url, name, null );
-
-    if ( resp.error )
+    catch ( ex )
     {
         let respStr = "I couldn't add the participant! " +
                       randomDogNoise() + ' ' +
-                      "Because of " + resp.errors[0] + "!";
+                      "Because of " + ex + "!";
         await interaction.reply( respStr );
         return;
     }
-
-    let respStr = 'I added ' + resp.participant.name + ' to ' +
-                  resp.participant.tournamentId + '! ' + randomDogNoise();
-    await interaction.reply( respStr );
 }
 commandCallbacks['bracketaddname'] = bracketAddNameCb;
 
@@ -412,88 +378,74 @@ commandCallbacks['bracketaddname'] = bracketAddNameCb;
  */
 async function bracketMatchesCb( interaction, options )
 {
+    let round = options.getInteger( 'round' );
     let url = options.getString( 'url' );
 
-    if ( !url )
-    {
-        url = lastBracketUrl;
+    // Get or update the last bracket
+    url = await getLastBracketUrl( url );
 
-        if ( !url )
+    try
+    {
+        let players = await bracket.indexParticipants( url );
+        let matches = await bracket.indexMatches( url );
+
+        let respStr = 'Here are the open matches! ' + randomDogNoise();
+
+        let curRound = 0;
+        for ( let match of matches )
         {
-            let respStr = "I don't know which bracket to look at! " + randomDogNoise();
-            await interaction.reply( respStr );
-            return;
-        }
-    }
-    else
-    {
-        lastBracketUrl = url;
-    }
+            if ( match.state != 'open' )
+            {
+                // Not an open match
+                continue;
+            }
 
-    let players = await bracket.indexParticipants( url );
-    if ( players.error )
+            if ( round != null && match.round != round )
+            {
+                // Filter for a specific round
+                continue;
+            }
+
+            if ( match.round != curRound )
+            {
+                curRound = match.round;
+                if ( curRound > 0 )
+                {
+                    respStr += '\n__Winners Round ' + curRound + '__';
+                }
+                else
+                {
+                    respStr += '\n__Losers Round ' + curRound + '__';
+                }
+            }
+
+            let player1Name = (players.find( p => p.id == match.player1Id)).name;
+            let player2Name = (players.find( p => p.id == match.player2Id)).name;
+            respStr += '\n' + player1Name + ' vs ' + player2Name;
+        }
+
+        if ( curRound == 0 )
+        {
+            if ( round )  // Specific round
+            {
+                respStr = 'No ongoing matches for round ' + round + '! ' + randomDogNoise();
+            }
+            else  // All rounds
+            {
+                respStr = 'No ongoing matches! ' + randomDogNoise();
+            }
+        }
+
+        await interaction.reply( respStr );
+    }
+    catch ( ex )
     {
         let respStr = "I couldn't get the participants! " +
                       randomDogNoise() + ' ' +
-                      "Because of " + players.text + "!";
+                      "Because of " + ex + "!";
         await interaction.reply( respStr );
         return;
     }
-
-    let matches = await bracket.indexMatches( url );
-    if ( matches.error )
-    {
-        let respStr = "I couldn't get the matches! " +
-                      randomDogNoise() + ' ' +
-                      "Because of " + matches.text + "!";
-        await interaction.reply( respStr );
-        return;
-    }
-
-    let respStr = 'Here are the open matches! ' + randomDogNoise();
-
-    let curRound = 0;
-    for ( let i = 0; /*in loop*/; ++i)
-    {
-        let item = matches[i];
-        if ( !item )
-        {
-            // Reached the end
-            break;
-        }
-
-        let match = item.match;
-
-        if ( match.state != 'open' )
-        {
-            // Not an open match
-            continue;
-        }
-
-        if ( match.round != curRound )
-        {
-            curRound = match.round;
-            if ( curRound > 0 )
-            {
-                respStr += '\n__Winners Round ' + curRound + '__';
-            }
-            else
-            {
-                respStr += '\n__Losers Round ' + curRound + '__';
-            }
-        }
-
-        let player1Name = idToPlayer( match.player1Id, players );
-        let player2Name = idToPlayer( match.player2Id, players );
-        respStr += '\n' + player1Name + ' vs ' + player2Name;
-    }
-
-    if ( curRound == 0 )
-    {
-        respStr = 'No ongoing matches! ' + randomDogNoise();
-    }
-
-    await interaction.reply( respStr );
 }
 commandCallbacks['bracketmatches'] = bracketMatchesCb;
 
@@ -529,72 +481,48 @@ async function bracketReportCb( interaction, options )
         loserScore = Math.min( leftScore, rightScore );
     }
 
-    if ( !url )
-    {
-        url = lastBracketUrl;
+    // Get or update the last bracket
+    url = await getLastBracketUrl( url );
 
-        if ( !url )
+    try
+    {
+        // Find the participant for the winner
+        let participant = await bracket.findParticipantWithName( url, winner );
+
+        let winnerId = participant.id;
+
+        // Find the match containing the winner
+        let match = await bracket.findOpenMatchWithParticipant( url, winnerId );
+
+        let orderedScore;
+        if ( match.player1Id == winnerId )
         {
-            let respStr = "I don't know which bracket to look at! " + randomDogNoise();
-            await interaction.reply( respStr );
-            return;
+            orderedScore = winnerScore + '-' + loserScore;
         }
-    }
-    else
-    {
-        lastBracketUrl = url;
-    }
+        else
+        {
+            orderedScore = loserScore + '-' + winnerScore;
+        }
 
-    // Find the participant for the winner
-    let participant = bracket.findParticipantWithName( url, winner );
-    if ( participant.error )
-    {
-        let respStr = "I couldn't find that player! " +
-                      randomDogNoise() + ' ' +
-                      "Because of " + participant.text + "!";
-        await interaction.reply( respStr );
-        return;
-    }
-    let winnerId = participant.id;
+        let result = await bracket.reportMatch( url, match.id, orderedScore, winnerId );
 
-    // Find the match containing the winner
-    let match = bracket.findOpenMatchWithParticipant( url, winnerId );
-    if ( match.error )
-    {
-        let respStr = "I couldn't find a match! " +
-                      randomDogNoise() + ' ' +
-                      "Because of " + match.text + "!";
-        await interaction.reply( respStr );
-        return;
+        let players = await bracket.indexParticipants( url );
+        let player1Name = (players.find( p => p.id == match.player1Id)).name;
+        let player2Name = (players.find( p => p.id == match.player2Id)).name;
+        let respStr = 'Reported ' + participant.name + ' as the winner of ' +
+                        player1Name + ' vs ' + player2Name +
+                        ' (' + orderedScore + ')! ' +
+                        randomDogNoise();
+        await interaction.reply( respStr ); 
     }
-
-    let orderedScore;
-    if ( match.player1Id == winnerId )
-    {
-        orderedScore = winnerScore + '-' + loserScore;
-    }
-    else
-    {
-        orderedScore = loserScore + '-' + winnerScore;
-    }
-
-    let result = await bracket.updateMatch( url, match.id, orderedScore, winnerId );
-    if ( result.error )
+    catch ( ex )
     {
         let respStr = "I couldn't report the match! " +
                     randomDogNoise() + ' ' +
-                    "Because of " + result.errors[0] + "!";
+                    "Because of " + ex + "!";
         await interaction.reply( respStr );
         return;
     }
-
-    let player1Name = idToPlayer( match.player1Id, players );
-    let player2Name = idToPlayer( match.player2Id, players );
-    let respStr = 'Reported ' + winner + ' as the winner of ' +
-                    player1Name + ' vs ' + player2Name +
-                    ' (' + orderedScore + ')! ' +
-                    randomDogNoise();
-    await interaction.reply( respStr ); 
 }
 commandCallbacks['bracketreport'] = bracketReportCb;
 
@@ -607,119 +535,124 @@ async function bracketVoteCb( interaction, options )
     let duration = options.getInteger( 'duration' );
     let url = options.getString( 'url' );
 
-    if ( !url )
-    {
-        url = lastBracketUrl;
+    // Get or update the last bracket
+    url = await getLastBracketUrl( url );
 
-        if ( !url )
+    try
+    {
+        // Find the participant for the player
+        let participant = await bracket.findParticipantWithName( url, player );
+
+        // Find the match containing the player
+        let match = await bracket.findOpenMatchWithParticipant( url, participant.id );
+
+        // Get players 1 and 2
+        let player1;
+        let player2;
+        if ( match.player1Id == participant.id )
         {
-            let respStr = "I don't know which bracket to use! " + randomDogNoise();
-            await interaction.reply( respStr );
-            return;
+            player1 = participant;
+            player2 = await bracket.findParticipantWithId( url, match.player2Id );
         }
-    }
-    else
-    {
-        lastBracketUrl = url;
-    }
+        else
+        {
+            player1 = await bracket.findParticipantWithId( url, match.player1Id );
+            player2 = participant;
+        }
 
-    // Find the participant for the player
-    let participant = await bracket.findParticipantWithName( url, player );
-    if ( participant.error )
+        // Get the current time/date
+        let now = new Date();
+
+        // Get the time to end the vote
+        let endTime = new Date( now.getTime() + duration * 60 * 1000 );
+
+        // Construct a bracket vote
+        let vote = new BracketVote( url, match, player1, player2 );
+
+        // Start the vote
+        await vote.start( interaction, endTime );
+    }
+    catch ( ex )
     {
-        let respStr = "I couldn't find that player! " +
+        let respStr = "I couldn't create a vote! " +
                       randomDogNoise() + ' ' +
-                      "Because of " + participant.text + "!";
+                      "Because of " + ex + "!";
         await interaction.reply( respStr );
         return;
     }
-
-    // Find the match containing the player
-    let match = await bracket.findOpenMatchWithParticipant( url, participant.id );
-    if ( match.error )
-    {
-        let respStr = "I couldn't find a match! " +
-                      randomDogNoise() + ' ' +
-                      "Because of " + match.text + "!";
-        await interaction.reply( respStr );
-        return;
-    }
-
-    // Get players 1 and 2
-    let player1;
-    let player2;
-    if ( match.player1Id == participant.id )
-    {
-        player1 = participant;
-        player2 = await bracket.findParticipantWithId( url, match.player2Id );
-
-        if ( player2.error )
-        {
-            let respStr = "I couldn't find the other player! " +
-                        randomDogNoise() + ' ' +
-                        "Because of " + player2.text + "!";
-            await interaction.reply( respStr );
-            return;
-        }
-    }
-    else
-    {
-        player1 = await bracket.findParticipantWithId( url, match.player1Id );
-        player2 = participant;
-
-        if ( player1.error )
-        {
-            let respStr = "I couldn't find the other player! " +
-                        randomDogNoise() + ' ' +
-                        "Because of " + player1.text + "!";
-            await interaction.reply( respStr );
-            return;
-        }
-    }
-
-    // Get the current time/date
-    let now = new Date();
-
-    // Get the time to end the vote
-    let endTime = new Date( now.getTime() + duration * 60 * 1000 );
-
-    // Construct a bracket vote
-    let vote = new BracketVote( url, match, player1, player2 );
-
-    // Start the vote
-    await vote.start( interaction, endTime );
 }
 commandCallbacks['bracketvote'] = bracketVoteCb;
 
 /**
  * 
  */
+async function bracketRoundVoteCb( interaction, options )
+{
+    let round = options.getInteger( 'round' );
+    let duration = options.getInteger( 'duration' );
+    let url = options.getString( 'url' );
+
+    // Get or update the last bracket
+    url = await getLastBracketUrl( url );
+
+
+    // Reply with a basic message
+    await interaction.deferReply();
+    let topMsg;
+    if ( round >= 0 )
+    {
+        topMsg = await interaction.followUp( 'Voting on Winners Round ' + round + '! ' + randomDogNoise() );
+    }
+    else
+    {
+        topMsg = await interaction.followUp( 'Voting on Losers Round ' + (-round) + '! ' + randomDogNoise() );
+    }
+
+    try
+    {
+        let players = await bracket.indexParticipants( url );
+        let matches = await bracket.indexMatches( url );
+
+        for ( let match of matches.filter( m => m.state == 'open' && m.round == round ) )
+        {
+            let player1 = players.find( p => p.id == match.player1Id);
+            let player2 = players.find( p => p.id == match.player2Id);
+
+            // Get the current time/date
+            let now = new Date();
+
+            // Get the time to end the vote
+            let endTime = new Date( now.getTime() + duration * 60 * 1000 );
+
+            // Construct a bracket vote
+            let vote = new BracketVote( url, match, player1, player2 );
+
+            // Start the vote
+            await vote.startByReply( topMsg, endTime );
+        }
+    }
+    catch ( ex )
+    {
+        let respStr = "I couldn't create a vote! " +
+                      randomDogNoise() + ' ' +
+                      "Because of " + ex + "!";
+        await topMsg.reply( respStr );
+        return;
+    }
+}
+commandCallbacks['bracketroundvote'] = bracketRoundVoteCb;
+
+/**
+ * 
+ */
 async function debugCb( interaction, options )
 {
-    //await interaction.reply(randomDogNoise());
+    await interaction.deferReply();
 
-    let duration = 5;
+    let responses = await BracketDb.indexResponses();
+    console.log( responses );
 
-    // Get the current time/date
-    let now = new Date();
-
-    // Get the time to end the raffle
-    let endTime = new Date( now.getTime() + duration * 1000 );
-
-    let opts = [
-        {
-            emoji: '🍎',
-            name: 'Apples'
-        },
-        {
-            emoji: '🍇',
-            name: 'Grapes'
-        }
-    ];
-
-    let vote = new Vote( opts );
-
-    await vote.start( interaction, endTime );
+    await interaction.followUp( JSON.stringify( responses ) );
 }
 commandCallbacks['debug'] = debugCb;
 
@@ -793,4 +726,26 @@ function editDistance( s, t )
 function getChampions( interaction )
 {
     return DiscordExt.getMembersWithRole( interaction, CHAMPION );
+}
+
+async function getLastBracketUrl ( newUrl )
+{
+    if ( newUrl !== null )
+    {
+        lastBracketUrl = newUrl;
+    }
+    else if ( lastBracketUrl === null )
+    {
+        let brackets = await bracket.indexTournaments();
+
+        let brack = brackets.filter( b => !b.completedAt ).pop();
+        if ( brack == undefined )
+        {
+            throw 'No open brackets found';
+        }
+
+        lastBracketUrl = brack.url;
+    }
+
+    return lastBracketUrl;
 }

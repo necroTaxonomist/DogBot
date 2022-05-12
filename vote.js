@@ -64,11 +64,13 @@ class Vote extends TimedEvent
      */
     async start( interaction, endTime )
     {
+        // Defer the reply
+        await interaction.deferReply();
+
         // Get the blub
         let resp = await this.blurb( endTime );
 
         // Reply to the user
-        await interaction.deferReply();
         let message = await interaction.followUp( resp );
 
         // Add the options as reacts

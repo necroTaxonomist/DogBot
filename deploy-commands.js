@@ -44,7 +44,11 @@ const topCommand = new SlashCommandBuilder()
         )
     )
     .addSubcommand( subcommand => subcommand
-        .setName( 'createbracket' )
+        .setName( 'bracketlink' )
+        .setDescription( 'Provides the link to the ongoing Challonge bracket' )
+    )
+    .addSubcommand( subcommand => subcommand
+        .setName( 'bracketcreate' )
         .setDescription( 'Creates a Challonge bracket' )
         .addStringOption( option => option
             .setName( 'name' )
@@ -84,7 +88,11 @@ const topCommand = new SlashCommandBuilder()
     )
     .addSubcommand( subcommand => subcommand
         .setName( 'bracketmatches' )
-        .setDescription( 'View all open matches in a Challonge bracket' )
+        .setDescription( 'View open matches in a Challonge bracket' )
+        .addIntegerOption( option => option
+            .setName( 'round' )
+            .setDescription( 'Round to view, negative for losers (defaults shows all open matches)' )
+        )
         .addStringOption( option => option
             .setName( 'url' )
             .setDescription( 'The url for the bracket (defaults to last used)' )
@@ -114,6 +122,24 @@ const topCommand = new SlashCommandBuilder()
         .addStringOption( option => option
             .setName( 'player' )
             .setDescription( 'Either player in the match' )
+            .setRequired( true )
+        )
+        .addIntegerOption( option => option
+            .setName( 'duration' )
+            .setDescription( 'Duration of the vote in minutes' )
+            .setRequired( true )
+        )
+        .addStringOption( option => option
+            .setName( 'url' )
+            .setDescription( 'The url for the bracket (defaults to last used)' )
+        )
+    )
+    .addSubcommand( subcommand => subcommand
+        .setName( 'bracketroundvote' )
+        .setDescription( 'Vote on a round of Challonge matches' )
+        .addIntegerOption( option => option
+            .setName( 'round' )
+            .setDescription( 'Round to vote on, negative for losers' )
             .setRequired( true )
         )
         .addIntegerOption( option => option

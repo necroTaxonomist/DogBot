@@ -15,8 +15,41 @@ const client = challonge.createClient(
 const util = require('util');
 
 //-----------
+// Constants
+//-----------
+
+const NAME_FORMAT = /(\p{Emoji})?\s*(\w+)\s*(?:\((.*)\))?/u;
+module.exports['NAME_FORMAT'] = NAME_FORMAT;
+
+//-----------
 // Functions
 //-----------
+function separateName( fullName, defaultEmoji = null )
+{
+    let match = fullName.match( NAME_FORMAT );
+    let result =
+    {
+        fullName: fullName,
+        emoji: match[1] ?? defaultEmoji,
+        origEmoji: match[1],
+        nameOnly: match[2].trim(),
+        source: match[3]
+    };
+
+    if ( result.source )
+    {
+        result.source = result.source.trim();
+        result.name = result.nameOnly + ' (' + result.source + ')';
+    }
+    else
+    {
+        result.name = result.nameOnly;
+    }
+
+    return result;
+}
+module.exports['separateName'] = separateName;
+
 async function runAction( action, obj )
 {
     const wrapper =
@@ -28,15 +61,8 @@ async function runAction( action, obj )
 
     const prom = util.promisify( wrapper );
 
-    try
-    {
-        let result = await prom( obj );
-        return result;
-    }
-    catch ( ex )
-    {
-        return ex;
-    }
+    let result = await prom( obj );
+    return result;
 }
 
 async function createTournament( name, url )
@@ -58,6 +84,30 @@ async function createTournament( name, url )
     return await runAction( o => client.tournaments.create( o ), obj );
 }
 module.exports['createTournament'] = createTournament;
+
+async function indexTournaments()
+{
+    let obj = {};
+
+    let tournaments = await runAction( o => client.tournaments.index( o ), obj );
+
+    let array = new Array();
+
+    for ( let i = 0; /*in loop*/; ++i )
+    {
+        let item = tournaments[i];
+        if ( !item )
+        {
+            // Reached the end
+            break;
+        }
+
+        array.push( item.tournament );
+    }
+
+    return array;
+}
+module.exports['indexTournaments'] = indexTournaments;
 
 async function createParticipant( url, name, misc )
 {
@@ -86,71 +136,61 @@ async function indexParticipants( url )
         id: url
     };
 
-    return await runAction( o => client.participants.index( o ), obj );
-}
-module.exports['indexParticipants'] = indexParticipants;
+    let participants = await runAction( o => client.participants.index( o ), obj );
 
-async function findParticipantWithName( url, name )
-{
-    name = StrExt.removeEmojis( name );
-
-    let participants = await indexParticipants( url );
-    if ( participants.error )
-    {
-        return participants;
-    }
+    let array = new Array();
 
     for ( let i = 0; /*in loop*/; ++i )
     {
         let item = participants[i];
         if ( !item )
         {
-            let error =
-            {
-                error: true,
-                text: "No open participants matching name"
-            };
-            return error;
+            // Reached the end
+            break;
         }
 
-        let participant = item.participant;
-
-        if ( name == StrExt.removeEmojis( participant.name ) )
-        {
-            return participant;
-        }
+        array.push( item.participant );
     }
+
+    return array;
+}
+module.exports['indexParticipants'] = indexParticipants;
+
+async function findParticipantWithName( url, name )
+{
+    let participants = await indexParticipants( url );
+    
+    console.log( name );
+    let participant = participants.find(
+        p =>
+        {
+            let sep = separateName( p.name );
+            console.log( sep );
+            return sep.fullName == name || sep.nameOnly == name || sep.name == name;
+        }
+    );
+
+    if ( participant == undefined )
+    {
+        throw 'No participants matching name';
+    }
+
+    return participant;
 }
 module.exports['findParticipantWithName'] = findParticipantWithName;
 
 async function findParticipantWithId( url, id )
 {
     let participants = await indexParticipants( url );
-    if ( participants.error )
+    
+    let participant = participants.find( p => p.id == id );
+
+    if ( participant == undefined )
     {
-        return participants;
+        throw 'No participants matching ID';
     }
 
-    for ( let i = 0; /*in loop*/; ++i )
-    {
-        let item = participants[i];
-        if ( !item )
-        {
-            let error =
-            {
-                error: true,
-                text: "No open participants matching ID"
-            };
-            return error;
-        }
-
-        let participant = item.participant;
-
-        if ( id == participant.id )
-        {
-            return participant;
-        }
-    }
+    return participant;
 }
 module.exports['findParticipantWithId'] = findParticipantWithId;
 
@@ -161,11 +201,27 @@ async function indexMatches( url )
         id: url
     };
 
-    return await runAction( o => client.matches.index( o ), obj );
+    let matches = await runAction( o => client.matches.index( o ), obj );
+
+    let array = new Array();
+
+    for ( let i = 0; /*in loop*/; ++i )
+    {
+        let item = matches[i];
+        if ( !item )
+        {
+            // Reached the end
+            break;
+        }
+
+        array.push( item.match );
+    }
+
+    return array;
 }
 module.exports['indexMatches'] = indexMatches;
 
-async function updateMatch( url, matchId, score, winnerId )
+async function reportMatch( url, matchId, score, winnerId )
 {
     let obj =
     {
@@ -180,41 +236,42 @@ async function updateMatch( url, matchId, score, winnerId )
 
     return await runAction( o => client.matches.update( o ), obj );
 }
-module.exports['updateMatch'] = updateMatch;
+module.exports['reportMatch'] = reportMatch;
+
+async function startMatch( url, matchId )
+{
+    let obj =
+    {
+        path: '/' + client.matches.options.get('subdomain') + url + '/matches/' + matchId + '/mark_as_underway',
+        method: 'PUT'
+    }
+
+    try
+    {
+        await runAction( o => client.matches.makeRequest( o ), obj );
+    }
+    catch ( ex )
+    {
+        console.log( ex );
+    }
+}
+module.exports['startMatch'] = startMatch;
 
 async function findOpenMatchWithParticipant( url, id )
 {
     let matches = await indexMatches( url );
-    if ( matches.error )
+    let match = matches.find(
+        m =>
+        {
+            return m.state == 'open' && (m.player1Id == id || m.player2Id == id);
+        }
+    );
+
+    if ( match == undefined )
     {
-        return matches;
+        throw 'No open matches containing player';
     }
 
-    for ( let i = 0; /*in loop*/; ++i)
-    {
-        let item = matches[i];
-        if ( !item )
-        {
-            let error =
-            {
-                error: true,
-                text: "No open matches containing player"
-            };
-            return error;
-        }
-
-        let match = item.match;
-
-        if ( match.state != 'open' )
-        {
-            // Not an open match
-            continue;
-        }
-
-        if ( match.player1Id == id || match.player2Id == id )
-        {
-            return match;
-        }
-    }
+    return match;
 }
 module.exports['findOpenMatchWithParticipant'] = findOpenMatchWithParticipant;

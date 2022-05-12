@@ -2,6 +2,7 @@
 const Vote = require('./vote');
 const StrExt = require( './strext' );
 const Bracket = require( './bracket' );
+const BracketDb = require( './bracketdb' );
 
 class BracketVote extends Vote
 {
@@ -20,37 +21,24 @@ class BracketVote extends Vote
      */
     constructor( url, match, player1, player2 )
     {
-        // Determine the emoji to use for player 1
-        let player1Emoji = player1.name.substring( 0, 2 );
-        if ( !StrExt.isEmoji( player1Emoji) )
-        {
-            player1Emoji = '🅰️';
-        }
-
-        // Determine the emoji to use for player 2
-        let player2Emoji = player2.name.substring( 0, 2 );
-        if ( (player1Emoji == player2Emoji) || !StrExt.isEmoji( player2Emoji) )
-        {
-            player2Emoji = '🅱️';
-
-            if ( player1Emoji == player2Emoji )
-            {
-                player2Emoji = '2️⃣';
-            }
-        }
-
-        // Get the options from the match
+        // Get the options from the players names
         let options =
         [
-            {
-                emoji: player1Emoji,
-                name: StrExt.removeEmojis( player1.name )
-            },
-            {
-                emoji: player2Emoji,
-                name: StrExt.removeEmojis( player2.name )
-            }
+            Bracket.separateName( player1.name, '🅰️' ),
+            Bracket.separateName( player2.name, '🅱️' )
         ];
+
+        if ( options[0].emoji == options[1].emoji )
+        {
+            if ( options[0].emoji != '🅱️' )
+            {
+                options[1].emoji = '🅱️';
+            }
+            else
+            {
+                options[1].emoji != '2️⃣';
+            }
+        }
 
         // Call the parent constructor
         super( options );
@@ -60,6 +48,7 @@ class BracketVote extends Vote
         this.match = match;
         this.player1 = player1;
         this.player2 = player2;
+        this.players = [ player1, player2 ];
     }
 
     //---------
@@ -97,14 +86,29 @@ class BracketVote extends Vote
             content += '\n' + o.emoji + ': ' + o.name;
         }
 
-        // TODO: Get files
-        let files = [ './accessories.png', './beanshope.png' ];
+        // Get the corresponding bracket entries
+        let entries = new Array();
+        for ( let o of this.options )
+        {
+            let entry = await BracketDb.findEntry( o.nameOnly, o.source, o.origEmoji );
+            if ( entry )
+            {
+                entries.push( entry );
+            }
+        }
+
+        // Get the image filenames
+        let files = entries.map( e => e.image );
 
         let resp =
         {
             content: content,
             files: files
         };
+
+        // Mark the match in progress
+        //await Bracket.startMatch( this.url, this.match.id );
+
         return resp;
     }
     
@@ -141,19 +145,19 @@ class BracketVote extends Vote
 
     async onWin( reacts, winner )
     {
-        await this.message.reply( "The winner is " + winner.name + "! " + StrExt.randomDogNoise() );
+        await this.message.reply( "The winner is " + winner.nameOnly + "! " + StrExt.randomDogNoise() );
 
         let winnerScore = reacts[0].count;
         let loserScore = reacts[1].count;
 
         let score;
         let winnerId;
-        if ( winner.name == StrExt.removeEmojis( this.player1.name ) )
+        if ( winner.fullName == this.player1.name )
         {
             score = winnerScore + '-' + loserScore;
             winnerId = this.player1.id;
         }
-        else if ( winner.name == StrExt.removeEmojis( this.player2.name ) )
+        else if ( winner.fullName == this.player2.name )
         {
             score = loserScore + '-' + winnerScore;
             winnerId = this.player2.id;
@@ -163,7 +167,7 @@ class BracketVote extends Vote
             console.log("This shouldn't happen!");
         }
 
-        await Bracket.updateMatch( this.url, this.match.id, score, winnerId );
+        await Bracket.reportMatch( this.url, this.match.id, score, winnerId );
     }
 }
 module.exports = BracketVote;
