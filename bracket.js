@@ -18,7 +18,7 @@ const util = require('util');
 // Constants
 //-----------
 
-const NAME_FORMAT = /(\p{Emoji})?\s*(\w+)\s*(?:\((.*)\))?/u;
+const NAME_FORMAT = /(\p{Emoji})?\s*([\w\.\d\s'"]+)\s*(?:\((.*)\))?/u;
 module.exports['NAME_FORMAT'] = NAME_FORMAT;
 
 //-----------
