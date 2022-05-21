@@ -77,7 +77,14 @@ client.on( 'interactionCreate', onInteractionCreate );
 
 async function onMessageReactionAdd( reaction, user )
 {
-    TimedEvent.postReaction( reaction, user );
+    try
+    {
+        TimedEvent.postReaction( reaction, user );
+    }
+    catch ( err )
+    {
+        console.log( "failed to handle reaction: " + err );
+    }
 }
 client.on( 'messageReactionAdd', onMessageReactionAdd );
 

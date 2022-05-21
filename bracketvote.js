@@ -41,7 +41,8 @@ class BracketVote extends Vote
         }
 
         // Call the parent constructor
-        super( options );
+        // Bracket votes are always secret
+        super( options, true );
 
         // Record the match info
         this.url = url;
@@ -81,6 +82,9 @@ class BracketVote extends Vote
         }
 
         content += ' It ends at ' + endTime.toLocaleTimeString() + '!';
+
+        content += '\n'+ Vote.TOTAL_VOTES_INIT_STR;
+
         for ( let o of this.options )
         {
             content += '\n' + o.emoji + ': ' + o.name;
@@ -148,7 +152,7 @@ class BracketVote extends Vote
         await this.message.reply( "The winner is " + winner.nameOnly + "! " + StrExt.randomDogNoise() );
 
         let winnerScore = reacts[0].count;
-        let loserScore = reacts[1].count;
+        let loserScore = (reacts.length > 1) ? reacts[1].count : 0;
 
         let score;
         let winnerId;

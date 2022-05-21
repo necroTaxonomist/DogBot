@@ -48,6 +48,6 @@ module.exports['isEmoji'] = isEmoji;
 
 function removeEmojis( str )
 {
-    return str.replaceAll( /\p{Emoji}/ug, '' );
+    return str.replace( /\p{Emoji}/ug, '' );
 }
 module.exports['removeEmojis'] = removeEmojis;
