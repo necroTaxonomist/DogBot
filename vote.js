@@ -155,6 +155,24 @@ class Vote extends TimedEvent
         reacts = reacts.filter(
             r => this.options.some( o => o.emoji == r.emoji )
         );
+
+        // Combine reacts with the same counts
+        let combinedReacts = new Array();
+        for ( let react of reacts )
+        {
+            let index = combinedReacts.findIndex( r => r.emoji == react.emoji );
+
+            if ( index != -1 )
+            {
+                combinedReacts[index].count += 1;
+            }
+            else
+            {
+                combinedReacts.push( react );
+            }
+        }
+        reacts = combinedReacts;
+
         console.log( reacts );
 
         // Sort by count
