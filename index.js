@@ -615,8 +615,8 @@ async function bracketRoundVoteCb( interaction, options )
         topMsg = await interaction.followUp( 'Voting on Losers Round ' + (-round) + '! ' + randomDogNoise() );
     }
 
-    try
-    {
+    //try
+    //{
         let players = await bracket.indexParticipants( url );
         let matches = await bracket.indexMatches( url );
 
@@ -637,15 +637,15 @@ async function bracketRoundVoteCb( interaction, options )
             // Start the vote
             await vote.startByReply( topMsg, endTime );
         }
-    }
-    catch ( ex )
-    {
-        let respStr = "I couldn't create a vote! " +
-                      randomDogNoise() + ' ' +
-                      "Because of " + ex + "!";
-        await topMsg.reply( respStr );
-        return;
-    }
+    //}
+    //catch ( ex )
+    //{
+        //let respStr = "I couldn't create a vote! " +
+        //              randomDogNoise() + ' ' +
+        //              "Because of " + ex + "!";
+        //await topMsg.reply( respStr );
+        //return;
+    //}
 }
 commandCallbacks['bracketroundvote'] = bracketRoundVoteCb;
 

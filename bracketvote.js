@@ -9,7 +9,7 @@ class BracketVote extends Vote
     //-----------
     // Constants
     //-----------
-    static MAX_LIGHTING_ROUND_DURATION = 5;
+    static MAX_LIGHTING_ROUND_DURATION = 10;
     static MIN_LIGHTING_ROUND_DURATION = 1;
 
     //--------------
@@ -95,14 +95,15 @@ class BracketVote extends Vote
         for ( let o of this.options )
         {
             let entry = await BracketDb.findEntry( o.nameOnly, o.source, o.origEmoji );
-            if ( entry )
+            if ( entry != null )
             {
                 entries.push( entry );
             }
         }
+        console.log( entries );
 
         // Get the image filenames
-        let files = entries.map( e => e.image );
+        let files = entries.map( e => e.image ).filter( i => i != null );
 
         let resp =
         {

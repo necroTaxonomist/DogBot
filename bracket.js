@@ -160,12 +160,10 @@ async function findParticipantWithName( url, name )
 {
     let participants = await indexParticipants( url );
     
-    console.log( name );
     let participant = participants.find(
         p =>
         {
             let sep = separateName( p.name );
-            console.log( sep );
             return sep.fullName == name || sep.nameOnly == name || sep.name == name;
         }
     );

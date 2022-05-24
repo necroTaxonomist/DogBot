@@ -7,7 +7,7 @@ const GoogleAuth = require( './googleauth' );
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const ImageDb = require( './imagedb' )
 
-const RESPONSES_DOC = '1RXs6yaF5KwiuwdOsJ_7StoXBhviR9eO0HgPQfQ3FeDE';
+const RESPONSES_DOC = '1Vt9-Li1i3fRje2oVBvruJfvKENKjCmf_YWjuoeXz7BI';
 
 //-----------
 // Variables
@@ -131,6 +131,8 @@ module.exports['getResponse'] = getResponse;
 async function findEntry( name, source, emoji )
 {
     let responses = await indexResponses();
+    
+    console.log( 'Searching entires for ' + emoji + name + ' (' + source + ')...' );
 
     for ( let response of responses )
     {
@@ -139,10 +141,10 @@ async function findEntry( name, source, emoji )
             if ( entry.name != name )
                 continue;
             
-            if ( source && entry.source != source)
+            if ( source && entry.source && (entry.source != source) )
                 continue;
             
-            if ( emoji && entry.emoji != emoji )
+            if ( emoji && entry.emoji && (entry.emoji != emoji ) )
                 continue;
             
             return entry;

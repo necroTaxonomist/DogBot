@@ -36,6 +36,8 @@ async function getDrive()
 
 async function fetchFileById( fileId )
 {
+    console.log( 'Fetching file ' + fileId + '...' );
+
     let req =
     {
         fileId: fileId,
@@ -52,6 +54,15 @@ async function fetchFileById( fileId )
     let fn = IMAGE_DIR + '/' + fileId;
     if ( res.headers['content-type'] == 'image/jpeg' )
         fn += '.jpg';
+    else if ( res.headers['content-type'] == 'image/png' )
+        fn += '.png';
+    else if ( res.headers['content-type'] == 'image/webp' )
+        fn += '.webp';
+    else
+    {
+        console.log( 'Unrecognized content type ' + res.headers['content-type'] );
+        return null;
+    }
 
     let dest = fs.createWriteStream( fn );
     res.data.pipe( dest );
@@ -86,13 +97,19 @@ async function getFileById( fileId )
     let prom = util.promisify( glob );
     let matches = await prom( fnPattern );
 
-    if ( matches )
+    if ( matches != null && matches[0] != null )
     {
+        console.log( 'Found cached file ' + matches[0] );
         return matches[0];
     }
 
     let fn = await fetchFileById( fileId );
-    cache.set( fileId, fn );
+
+    if ( fn != null )
+    {
+        cache.set( fileId, fn );
+    }
+
     return fn;
 }
 module.exports['getFileById'] = getFileById;
